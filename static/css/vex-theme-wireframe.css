@@ -139,7 +139,7 @@
 .vex.vex-theme-wireframe .vex-content i,
 .vex.vex-theme-wireframe .vex-content th,
 .vex.vex-theme-wireframe .vex-content strong {
-  color: #336699;
+  color: #3758ce;
 }
 /* line 29, ../sass/vex-theme-wireframe.sass */
 .vex.vex-theme-wireframe .vex-content h1, .vex.vex-theme-wireframe .vex-content h2, .vex.vex-theme-wireframe .vex-content h3, .vex.vex-theme-wireframe .vex-content h4, .vex.vex-theme-wireframe .vex-content h5, .vex.vex-theme-wireframe .vex-content h6, .vex.vex-theme-wireframe .vex-content p, .vex.vex-theme-wireframe .vex-content ul, .vex.vex-theme-wireframe .vex-content li {
@@ -165,7 +165,7 @@
   text-align: center;
   top: 3px;
   right: 3px;
-  color: #336699;
+  color: #3758ce;
 }
 /* line 51, ../sass/vex-theme-wireframe.sass */
 .vex.vex-theme-wireframe .vex-close:hover:before, .vex.vex-theme-wireframe .vex-close:active:before {
