@@ -128,7 +128,7 @@
   font-size: 1rem;
   background: white;
   color: black;
-  border: 6px solid #FFCC33;
+  border: 6px solid #febf2e;
   padding: 2em;
   position: relative;
   margin: 0 auto;
@@ -151,7 +151,7 @@
   top: 0;
   right: 0;
   cursor: pointer;
-  color: #FFCC33;
+  color: #febf2e;
 }
 /* line 38, ../sass/vex-theme-wireframe.sass */
 .vex.vex-theme-wireframe .vex-close:before {

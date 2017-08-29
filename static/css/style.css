@@ -120,7 +120,7 @@ body, input {
 #script-icons .status-icon {
   width: 2rem;
   height: 2rem;
-  border: 6px solid #FFCC33;
+  border: 6px solid #febf2e;
   border-radius: 50%;
   margin: .2rem;
   text-align: center;
@@ -259,7 +259,7 @@ body, input {
 .roundsymbol {
   width: 4rem;
   height: 4rem;
-  border: 6px solid #FFCC33;
+  border: 6px solid #febf2e;
   border-radius: 50%;
   margin: .2rem;
   margin-bottom: 0;
@@ -369,7 +369,7 @@ a.command:hover {
 }
 
 .snippet-selection:hover {
-    background: #FFCC33;
+    background: #febf2e;
     cursor: pointer;
 }
 
@@ -406,7 +406,7 @@ a.command:hover {
 
 #messagebar {
     display: none;
-    background-color: #ffcc33;
+    background-color: #febf2e;
     padding: 0.75em;
     font-family: "Segoe UI Light", "Segoe UI", "Segoe WP Light", "Segoe WP", "HelveticaNeue-Light", "Helvetica Neue Light", "Helvetica Neue", sans-serif;
 }
