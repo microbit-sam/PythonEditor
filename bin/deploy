@@ -28,4 +28,4 @@ if ! aws s3api head-bucket --bucket ${BUCKET} > /dev/null 2>&1; then
   aws s3api put-bucket-policy --bucket ${BUCKET} --policy "file://${POLICY}"
 fi
 
-aws s3 sync ${SRC} s3://${BUCKET} --exclude ".git/*"
+aws s3 sync ${SRC} s3://${BUCKET} --delete
