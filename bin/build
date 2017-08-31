@@ -3,20 +3,20 @@ set -e
 set -u
 set -o pipefail
 
-pushd `dirname $0` > /dev/null
-SCRIPTPATH=`pwd`
+pushd "$(dirname $0)" > /dev/null
+SCRIPTPATH="$(pwd)"
 popd > /dev/null
 
 SRC="${SCRIPTPATH}/../"
 DEST="${SRC}/dist/"
 
-rm -rf ${DEST}
-mkdir ${DEST}
+rm -rf "${DEST}"
+mkdir "${DEST}"
 
 for file in editor.html help.html python-main.js; do
-  cp ${SRC}/$file ${DEST}
+  cp "${SRC}/$file" "${DEST}"
 done
 
 for dir in ace blockly microbit_blocks static; do
-  cp -r ${SRC}/$dir ${DEST}
+  cp -r "${SRC}/$dir" "${DEST}"
 done
