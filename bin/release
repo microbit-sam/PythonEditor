@@ -9,7 +9,7 @@ popd > /dev/null
 
 : ${GIT_REMOTE:=origin}
 PROJECTPATH="${SCRIPTPATH}/../"
-VERSION=$(cat "${PROJECTPATH}/VERSION")
+VERSION=$(cat "${PROJECTPATH}VERSION")
 
 if ! grep -E '(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-(0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(\.(0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*)?(\+[0-9a-zA-Z-]+(\.[0-9a-zA-Z-]+)*)?' <<< ${VERSION} >/dev/null; then
   echo "Contents of VERSION doesn't conform to semver, aborting"
