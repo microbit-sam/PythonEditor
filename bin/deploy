@@ -7,16 +7,16 @@ set -o pipefail
 # TODO: add Route53 provisioning per version
 # TODO: add CloudFront invalidation per version
 
+BUCKET_PREFIX=$1
+
 pushd "$(dirname $0)" > /dev/null
 SCRIPTPATH="$(pwd)"
 popd > /dev/null
 
 PROJECTPATH="${SCRIPTPATH}/../"
-
-VERSION=$(cat "${PROJECTPATH}/VERSION")
 SRC="${PROJECTPATH}/dist"
 
-BUCKET="${VERSION}.python-editor.microbit.org"
+BUCKET="${BUCKET_PREFIX}.python-editor.microbit.org"
 
 if ! aws s3api head-bucket --bucket "${BUCKET}" > /dev/null 2>&1; then
   POLICY=$(mktemp)
