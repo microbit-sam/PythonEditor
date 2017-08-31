@@ -76,21 +76,31 @@ body, input {
 
 /* Script info box */
 #script-box {
+  padding-right: 1rem;
+  margin-left: auto;
   margin-right: 1rem;
-  margin-left: 1rem;
-  text-align: right;
-  width: 100%;
+  justify-content: center;
 }
 
 #script-name {
-  font-size: 2rem;
+  font-size: 1.75rem;
+  border: #808080 1px solid;
   color: #1a354c;
   overflow: hidden;
-  max-height: 90px;
+  width: 100%;
+  margin-right: 1rem;
+  min-width: 10rem;
+  max-width: 15rem;
+  background-color: white;
+  line-height: 2.5rem;
+  max-height: 2.5rem;
+  padding: 0 0.5rem;
+  border-radius: 0.5rem;
 }
 
 #script-description {
-  color: #336699;
+  display: none; /* TODO: FIXME: remove this field */
+  color: #3758ce;
   padding-bottom: 0.2rem;
   overflow: hidden;
   max-height: 22px;
@@ -101,7 +111,7 @@ body, input {
   cursor: pointer;
 }
 
-.zoomer, 
+.zoomer,
 .saved-state {
   cursor: pointer !important;
 }
@@ -114,7 +124,7 @@ body, input {
 #script-icons .status-icon {
   width: 2rem;
   height: 2rem;
-  border: 6px solid #FFCC33;
+  border: 6px solid #febf2e;
   border-radius: 50%;
   margin: .2rem;
   text-align: center;
@@ -122,7 +132,7 @@ body, input {
   line-height: 2.1rem;
   padding: .1em;
   font-family: "Segoe UI Emoji", "Segoe UI Symbol", "Symbola", sans-serif;
-  color: #336699;
+  color: #3758ce;
   background: #FFFFFF;
 }
 
@@ -134,7 +144,7 @@ body, input {
   -webkit-flex-direction: column;
   -ms-flex-direction: column;
   flex-direction: column;
-  color: #336699;
+  color: #3758ce;
   text-decoration: none;
   background-image: url("../img/triangle.svg");
   background-size: 100%;
@@ -192,10 +202,6 @@ body, input {
   font-weight: bold;
 }
 
-#commands {
-  min-width: 900px;
-}
-
 #commands a {
   text-align: center;
   padding-left: 0.75em;
@@ -204,6 +210,8 @@ body, input {
 
 
 #toolbox {
+  background-image: url("../img/toolbox_bg.png");
+  background-repeat: repeat-x;
 }
 
 #log {
@@ -240,9 +248,10 @@ body, input {
   -webkit-flex-direction: column;
   -ms-flex-direction: column;
   flex-direction: column;
-  color: #336699;
+  color: #3758ce;
   text-decoration: none;
   background-image: url("../img/triangle.svg");
+  background-position-x: -1px;
   background-size: 100%;
   background-repeat: no-repeat;
   min-width: 90px;
@@ -251,7 +260,7 @@ body, input {
 .roundsymbol {
   width: 4rem;
   height: 4rem;
-  border: 6px solid #FFCC33;
+  border: 6px solid #febf2e;
   border-radius: 50%;
   margin: .2rem;
   margin-bottom: 0;
@@ -260,7 +269,7 @@ body, input {
   line-height: 4.4rem;
   padding: .1em;
   font-family: "Segoe UI Emoji", "Segoe UI Symbol", "Symbola", sans-serif;
-  color: #336699;
+  color: #3758ce;
   background: #FFFFFF;
 }
 
@@ -273,7 +282,7 @@ body, input {
   padding-bottom: .3rem;
   font-size: 80%;
   text-align: center;
-  color: #336699;
+  color: #3758ce;
 }
 
 body:not(.hasFota) .fota {
@@ -327,7 +336,6 @@ a.command:hover {
   #script-name {
     font-size: 1.2rem;
     font-weight: bold;
-    max-height: 50px;
   }
 
   .blocklyTreeRow {
@@ -341,10 +349,6 @@ a.command:hover {
   .blocklyTreeLabel {
     font-size: 12px !important;
   }
-
-  #commands {
-    min-width: 425px;
-  }
 }
 
 @media (max-width: 480px) {
@@ -354,15 +358,14 @@ a.command:hover {
   }
 
   #script-box {
-    margin-right: 1rem;
-    margin-left: 1rem;
+    margin: 1rem;
     text-align: left;
     width: 100%;
   }
 }
 
 .snippet-selection:hover {
-    background: #FFCC33;
+    background: #febf2e;
     cursor: pointer;
 }
 
@@ -399,13 +402,13 @@ a.command:hover {
 
 #messagebar {
     display: none;
-    background-color: #ffcc33;
+    background-color: #febf2e;
     padding: 0.75em;
     font-family: "Segoe UI Light", "Segoe UI", "Segoe WP Light", "Segoe WP", "HelveticaNeue-Light", "Helvetica Neue Light", "Helvetica Neue", sans-serif;
 }
 
 #messagebar a, #messagebar a.visited {
-    color: #336699;
+    color: #3758ce;
     font-weight: bold;
 }
 
@@ -439,7 +442,7 @@ div.load-form {
 }
 
 #load-alt a, #load-alt a.visited {
-    color: #336699;
+    color: #3758ce;
     font-weight: bold;
 }
 
