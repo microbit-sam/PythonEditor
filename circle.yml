@@ -9,6 +9,7 @@ checkout:
 
 dependencies:
   override:
+    - sudo apt-get install jq
     - pip install awscli
 
 deployment:
