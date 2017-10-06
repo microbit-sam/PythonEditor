@@ -2,7 +2,6 @@
 set -e
 set -u
 set -o pipefail
-
 VERSION=$1
 NORMALISED_VERSION=$(echo ${VERSION} | sed -e "s/\./-/g")
 
@@ -25,6 +24,8 @@ if ! aws s3api head-bucket --bucket "${BUCKET}" > /dev/null 2>&1; then
 fi
 
 aws s3 sync "${SRC}" "s3://${BUCKET}" --delete
+
+aws configure set preview.cloudfront true
 
 CF_DISTRIBUTION_ID=$(aws cloudfront list-distributions | jq ".DistributionList.Items[] | select(.Origins.Items[].Id == \"S3-${BUCKET}\") | .Id" | sed -e 's/\"//g')
 if [[ ! -z ${CF_DISTRIBUTION_ID} ]]; then

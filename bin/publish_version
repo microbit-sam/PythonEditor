@@ -7,6 +7,8 @@ VERSION=$1
 NORMALISED_VERSION=$(echo ${VERSION} | sed -e "s/\./-/g")
 BUCKET="python-editor-${NORMALISED_VERSION}.microbit.org"
 
+aws configure set preview.cloudfront true
+
 CLOUDFRONT_POLICY=$(mktemp)
 sed -e "s/{{NORMALISED_VERSION}}/${NORMALISED_VERSION}/g" cloudfront.tmpl.json > "${CLOUDFRONT_POLICY}"
 sed -i '' "s/{{CALLER_REFERENCE}}/$(date +%s)/" ${CLOUDFRONT_POLICY}
