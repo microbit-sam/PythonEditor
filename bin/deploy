@@ -16,7 +16,7 @@ BUCKET="python-editor-${NORMALISED_VERSION}.microbit.org"
 
 if ! aws s3api head-bucket --bucket "${BUCKET}" > /dev/null 2>&1; then
   S3_WEBSITE_POLICY=$(mktemp)
-  sed -e "s/{{BUCKET_NAME}}/${BUCKET}/g" policy.tmpl.json > "$S3_WEBSITE_POLICY"
+  sed -e "s/{{BUCKET_NAME}}/${BUCKET}/g" s3_website.tmpl.json > "$S3_WEBSITE_POLICY"
 
   aws s3api create-bucket --bucket "${BUCKET}" --region eu-west-1 --create-bucket-configuration LocationConstraint=eu-west-1
   aws s3 website "s3://${BUCKET}/" --index-document index.html --error-document error.html
