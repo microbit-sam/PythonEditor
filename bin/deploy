@@ -25,3 +25,8 @@ if ! aws s3api head-bucket --bucket "${BUCKET}" > /dev/null 2>&1; then
 fi
 
 aws s3 sync "${SRC}" "s3://${BUCKET}" --delete
+
+CF_DISTRIBUTION_ID=$(aws cloudfront list-distributions | jq ".DistributionList.Items[] | select(.Origins.Items[].Id == \"S3-${BUCKET}\") | .Id" | sed -e 's/\"//g')
+if [[ ! -z ${CF_DISTRIBUTION_ID} ]]; then
+  aws cloudfront create-invalidation --distribution-id "${CF_DISTRIBUTION_ID}" --paths '/*'
+fi
