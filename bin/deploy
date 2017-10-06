@@ -3,11 +3,8 @@ set -e
 set -u
 set -o pipefail
 
-# TODO: add CloudFront provisioning per version
-# TODO: add Route53 provisioning per version
-# TODO: add CloudFront invalidation per version
-
-BUCKET_PREFIX=$1
+VERSION=$1
+NORMALISED_VERSION=$(echo ${VERSION} | sed -e "s/\./-/g")
 
 pushd "$(dirname $0)" > /dev/null
 SCRIPTPATH="$(pwd)"
@@ -16,15 +13,15 @@ popd > /dev/null
 PROJECTPATH="${SCRIPTPATH}/../"
 SRC="${PROJECTPATH}/dist"
 
-BUCKET="${BUCKET_PREFIX}.python-editor.microbit.org"
+BUCKET="python-editor-${NORMALISED_VERSION}.microbit.org"
 
 if ! aws s3api head-bucket --bucket "${BUCKET}" > /dev/null 2>&1; then
-  POLICY=$(mktemp)
-  sed -e "s/{{BUCKET_NAME}}/${BUCKET}/g" policy.tmpl.json > "$POLICY"
+  S3_WEBSITE_POLICY=$(mktemp)
+  sed -e "s/{{BUCKET_NAME}}/${BUCKET}/g" policy.tmpl.json > "$S3_WEBSITE_POLICY"
 
   aws s3api create-bucket --bucket "${BUCKET}" --region eu-west-1 --create-bucket-configuration LocationConstraint=eu-west-1
   aws s3 website "s3://${BUCKET}/" --index-document index.html --error-document error.html
-  aws s3api put-bucket-policy --bucket "${BUCKET}" --policy "file://${POLICY}"
+  aws s3api put-bucket-policy --bucket "${BUCKET}" --policy "file://${S3_WEBSITE_POLICY}"
 fi
 
 aws s3 sync "${SRC}" "s3://${BUCKET}" --delete
