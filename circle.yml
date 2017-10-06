@@ -21,7 +21,7 @@ deployment:
     branch: /.*?/
     commands:
       - ./bin/build
-      - ./bin/deploy ${CIRCLE_BRANCH}.review
+      - ./bin/deploy ${CIRCLE_BRANCH}-review
 
 test:
   override:
