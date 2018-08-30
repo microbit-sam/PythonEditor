@@ -155,7 +155,7 @@ function pythonEditor(id) {
         var hex_lines = hexfile.trimRight().split(/\r?\n/);
         var start_line = hex_lines.lastIndexOf(':020000040003F7');
         if (start_line > 0) {
-            var lines = hex_lines.slice(start_line + 1, -2);
+            var lines = hex_lines.slice(start_line + 1, -5);
             var blob = lines.join('\n');
             if (blob=='') {
                 return '';
@@ -300,6 +300,10 @@ function web_editor(config) {
         if(config.flags.share) {
             $("#command-share").removeClass('hidden');
         }
+        if(navigator.usb != null){
+            $("#command-flash").removeClass('hidden');
+            $("#command-serial").removeClass('hidden');
+        }
     };
 
     // This function is called to initialise the editor. It sets things up so
@@ -307,7 +311,7 @@ function web_editor(config) {
     // sane defaults.
     function setupEditor(message) {
         // Set version in document title
-        document.title = document.title + ' ' + VERSION;
+        document.title = document.title + ' ' + EDITOR_VERSION;
         // Setup the Ace editor.
         EDITOR = pythonEditor('editor');
         if(message.n && message.c && message.s) {
@@ -655,7 +659,174 @@ function web_editor(config) {
         $('#editor').focus();
     }
 
-    // Join up the buttons in the user interface with some functions for
+    function doFlash(e) {
+        console.log("Select your micro:bit");
+        navigator.usb.requestDevice({
+            filters: [{vendorId: 0x0d28}]
+        }).then(device => {
+
+            // Connect to device
+            window.transport = new DAPjs.WebUSB(device);
+            window.daplink = new DAPjs.DAPLink(window.transport);
+            
+            // Ensure disconnected
+            window.daplink.disconnect();
+
+            // Event to monitor flashing progress
+            window.daplink.on(DAPjs.DAPLink.EVENT_PROGRESS, progress => {
+                $("#webusb-flashing-progress").val(progress).css("display", "inline-block");
+            });
+            
+            // Push binary to board
+            return window.daplink.connect()
+            .then(() => {
+            
+                // Create firmware
+                var firmware = $("#firmware").text();
+                try {
+                 var output = EDITOR.getHexFile(firmware);
+                } catch(e) {
+                 alert(config.translate.alerts.length);
+                 return;
+                }
+                
+                // Encode firmware for flashing
+                var enc = new TextEncoder();
+                var image = enc.encode(output).buffer;
+                
+                console.log("Flashing");
+                $("#webusb-flashing-progress").val(0);
+                $('#flashing-overlay-error').html("");
+                $("#flashing-overlay-container").css("display", "flex");
+                return window.daplink.flash(image);
+            })
+            .then(() => {
+                console.log("Finished flashing!");
+                $("#flashing-overlay-container").hide();
+                return window.daplink.disconnect();
+            })
+            .catch(e => {
+                console.log("Error flashing: " + e);
+                $("#flashing-overlay-container").css("display", "flex");
+                $("#webusb-flashing-progress").css("display", "none");
+                
+                // If micro:bit does not support dapjs
+                if(e.message === "No valid interfaces found."){
+                    $("#flashing-overlay-error").html('<div>' + e + '</div><div><a target="_blank" href="0247_kl26z_microbit_0x8000-DAPLINK-RELEASE.hex">Update your micro:bit firmware</a> to make use of this feature!</div><a href="#" onclick="flashErrorClose()">Close</a>');
+                    return;
+                }
+
+                $("#flashing-overlay-error").html('<div>' + e + '</div><div>Please restart your micro:bit and try again</div><a href="#" onclick="flashErrorClose()">Close</a>');
+            }); 
+
+    }).catch(e => {
+        console.log("There was an error during flashing: " + e);
+    });
+    
+    }
+
+    function doSerial(){
+      
+        // Hide terminal
+        if($("#repl").css('display') != 'none'){
+            $("#repl").hide();
+            $("#editor-container").show();
+            window.daplink.stopSerialRead();
+            $("#command-serial").attr("title", "Connect to your micro:bit and access the REPL");
+            $("#command-serial > .roundlabel").text("Open REPL");
+            return;
+        } 
+
+        navigator.usb.requestDevice({
+            filters: [{vendorId: 0xD28}]
+        })
+        .then(device => {
+
+            // Change REPL button to close
+            $("#command-serial").attr("title", "Close the REPL and go back to the editor");
+            $("#command-serial > .roundlabel").text("Close REPL");
+
+            // Empty #repl to remove any previous terminal interfaces
+            $("#repl").empty();
+
+            // Connect to device
+            window.transport = new DAPjs.WebUSB(device);
+            window.daplink = new DAPjs.DAPLink(window.transport);
+           
+
+            window.daplink.connect()
+            .then(() => {
+                return window.daplink.setSerialBaudrate(115200);
+            })
+            .then(() => {
+                return window.daplink.getSerialBaudrate();
+            })
+            .then(baud => {
+                window.daplink.startSerialRead();
+                console.log(`Listening at ${baud} baud...`);
+                
+
+               hterm.defaultStorage = new lib.Storage.Local();
+               const t = new hterm.Terminal("opt_profileName");
+
+               var daplinkReceived = false;
+
+               t.onTerminalReady = function() {
+                   const io = t.io.push();
+
+                   io.onVTKeystroke = (str) => {
+                        window.daplink.serialWrite(str);
+                   };
+
+                   io.sendString = (str) => {
+                        window.daplink.serialWrite(str);
+                   };
+
+                   io.onTerminalResize = (columns, rows) => {
+                   };
+               
+
+               };
+
+               $("#editor-container").hide();
+               $("#repl").show();
+
+               t.decorate(document.querySelector('#repl'));
+               t.installKeyboard();
+
+               // Recalculate terminal height
+               $("#repl > iframe").css("position", "relative");
+               $("#repl").attr("class", "hbox flex1");
+
+               window.daplink.on(DAPjs.DAPLink.EVENT_SERIAL_DATA, data => {
+                       t.interpret(data);
+                       daplinkReceived = true;
+               });
+
+               
+               // Send ctrl-C to get the terminal up
+               var attempt = 0;
+               var getPrompt = setInterval(
+                       function(){
+                            daplink.serialWrite("\x03"); 
+                            console.log("Requesting REPL...");
+                            attempt++;
+                            if(attempt == 5 || daplinkReceived) clearInterval(getPrompt);
+                        }, 200);
+            })
+            .catch(e => {
+                 // If micro:bit does not support dapjs
+                $("#flashing-overlay-error").show();
+                if(e.message === "No valid interfaces found."){
+                    $("#flashing-overlay-error").html('<div>' + e + '</div><div><a target="_blank" href="https://support.microbit.org/support/solutions/articles/19000019131-how-to-upgrade-the-firmware-on-the-micro-bit">Update your micro:bit firmware</a> to make use of this feature!</div><a href="#" onclick="flashErrorClose()">Close</a>');
+                    return;
+                }
+
+                $("#flashing-overlay-error").html('<div>' + e + '</div><div>Please restart your micro:bit and try again</div><a href="#" onclick="flashErrorClose()">Close</a>');
+            });
+        });
+}
+
     // handling what to do when they're clicked.
     function setupButtons() {
         $("#command-download").click(function () {
@@ -676,6 +847,16 @@ function web_editor(config) {
         $("#command-share").click(function () {
             doShare();
         });
+        $("#command-flash").click(function () {
+            doFlash();
+        });
+        $("#command-serial").click(function () {
+            doSerial();
+        });
+        $("#command-help").click(function () {
+            $(".helpsupport_container").toggle();
+        });
+        $(".helpsupport_container").hide();
     }
 
     // Extracts the query string and turns it into an object of key/value
@@ -700,7 +881,7 @@ function web_editor(config) {
     // appropriate message.
     function checkVersion(qs) {
         $.getJSON('../manifest.json').done(function(data) {
-            if(data.latest === VERSION) {
+            if(data.latest === EDITOR_VERSION) {
                 // Already at the latest version, so ignore.
                 return;
             } else {
@@ -717,7 +898,7 @@ function web_editor(config) {
                 messagebar.html(Mustache.render(template, context))
                 messagebar.show();
                 $('#messagebar-link').attr('href',
-                                           window.location.href.replace(VERSION, data.latest));
+                                           window.location.href.replace(EDITOR_VERSION, data.latest));
                 $('#messagebar-close').on('click', function(e) {
                     $('#messagebar').hide();
                 });
@@ -731,4 +912,34 @@ function web_editor(config) {
     checkVersion(qs);
     setupButtons();
 };
+
+/*
+ * Function to close flash error box
+ */
+function flashErrorClose(){
+    $('#flashing-overlay-error').html("");
+    $('#flashing-overlay-container').hide();
+}
+
+function htermInit() {
+            hterm.defaultStorage = new lib.Storage.Local();
+            const t = new hterm.Terminal();
+
+            t.onTerminalReady = function() {
+                const io = t.io.push();
+
+                io.onVTKeystroke = (str) => {
+                };
+
+                io.sendString = (str) => {
+                };
+
+                io.onTerminalResize = (columns, rows) => {
+                    console.log("resizing");
+                };
+
+            };
+            
+            t.decorate(document.querySelector('#repl'));
+}
 
