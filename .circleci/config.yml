@@ -20,7 +20,7 @@ jobs:
     parallelism: 1
     shell: /bin/bash --login
     docker:
-    - image: python:3.6-jessie-browsers
+    - image: python:3.6-jessie
     steps:
     - checkout
     - run: git submodule sync
