@@ -305,7 +305,7 @@ function web_editor(config) {
     // This function is called to initialise the editor. It sets things up so
     // the user sees their code or, in the case of a new program, uses some
     // sane defaults.
-    function setupEditor(message) {
+    function setupEditor(message, migration) {
         // Setup the Ace editor.
         EDITOR = pythonEditor('editor');
         if(message.n && message.c && message.s) {
@@ -326,6 +326,11 @@ function web_editor(config) {
                 vex.close();
                 EDITOR.focus();
             });
+        } else if(migration != null){
+            setName(migration.meta.name);
+            setDescription(migration.meta.comment);
+            EDITOR.setCode(migration.source);
+            EDITOR.focus();
         } else {
             // If there's no name, default to something sensible.
             setName("microbit")
@@ -659,6 +664,14 @@ function web_editor(config) {
         $("#command-share").click(function () {
             doShare();
         });
+        $("#command-help").click(function () {
+            if($(".helpsupport_container").css("display") == "none"){
+                $(".helpsupport_container").css("display", "flex");
+            } else {
+                $(".helpsupport_container").css("display", "none");
+            }
+        });
+        $(".helpsupport_container").hide();
     }
 
     // Extracts the query string and turns it into an object of key/value
@@ -677,6 +690,14 @@ function web_editor(config) {
             result[kv_pair[0]] = decodeURIComponent(kv_pair[1]);
         }
         return result;
+    }
+
+    function get_migration() {
+        var compressed_project = window.location.toString().split("#project:")[1];
+        if(typeof compressed_project === "undefined") return null;
+        var bytes = base64js.toByteArray(compressed_project);
+        var project = JSON.parse(LZMA.decompress(bytes));
+        return project;
     }
 
     // Checks if this is the latest version of the editor. If not display an
@@ -709,8 +730,9 @@ function web_editor(config) {
     }
 
     var qs = get_qs_context()
+    var migration = get_migration();
     setupFeatureFlags();
-    setupEditor(qs);
+    setupEditor(qs, migration);
     checkVersion(qs);
     setupButtons();
 };
