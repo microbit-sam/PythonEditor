@@ -17,6 +17,6 @@ for file in editor.html help.html python-main.js; do
   cp "${SRC}/$file" "${DEST}"
 done
 
-for dir in ace blockly microbit_blocks static; do
+for dir in ace blockly microbit_blocks static base64-js lzma; do
   cp -r "${SRC}/$dir" "${DEST}"
 done
