@@ -1,6 +1,4 @@
 /*
-0.0.6
-
 A simple editor that targets MicroPython for the BBC micro:bit.
 
 Feel free to have a look around! (We've commented the code so you can see what
@@ -14,6 +12,8 @@ is attached to the div with the referenced id.
 function pythonEditor(id) {
     // An object that encapsulates the behaviour of the editor.
     editor = {};
+    editor.initialFontSize = 22;
+    editor.fontSizeStep = 4;
 
     // Represents the ACE based editor.
     var ACE = ace.edit(id);  // The editor is in the tag with the referenced id.
@@ -24,6 +24,7 @@ function pythonEditor(id) {
     ACE.getSession().setMode("ace/mode/python");  // We're editing Python.
     ACE.getSession().setTabSize(4); // Tab=4 spaces.
     ACE.getSession().setUseSoftTabs(true); // Tabs are really spaces.
+    ACE.setFontSize(editor.initialFontSize);
     editor.ACE = ACE;
 
     // Gets the textual content of the editor (i.e. what the user has written).
@@ -89,7 +90,10 @@ function pythonEditor(id) {
         for (var i = 0; i < script.length; ++i) {
             data[4 + i] = script.charCodeAt(i);
         }
-        // TODO check data.length < 0x2000
+        // check data.length < 0x2000
+        if(data.length > 8192) {
+            throw new RangeError('Too long');
+        }
         // convert to .hex format
         var addr = 0x3e000; // magic start address in flash
         var chunk = new Uint8Array(5 + 16);
@@ -163,6 +167,45 @@ function pythonEditor(id) {
         }
     }
 
+    // Given a password and some plaintext, will return an encrypted version.
+    editor.encrypt = function(password, plaintext) {
+        var key_size = 24;
+        var iv_size = 8;
+        var salt = forge.random.getBytesSync(8);
+        var derived_bytes = forge.pbe.opensslDeriveBytes(password, salt, key_size + iv_size);
+        var buffer = forge.util.createBuffer(derived_bytes);
+        var key = buffer.getBytes(key_size);
+        var iv = buffer.getBytes(iv_size);
+        var cipher = forge.cipher.createCipher('AES-CBC', key);
+        cipher.start({iv: iv});
+        cipher.update(forge.util.createBuffer(plaintext, 'binary'));
+        cipher.finish();
+        var output = forge.util.createBuffer();
+        output.putBytes('Salted__');
+        output.putBytes(salt);
+        output.putBuffer(cipher.output);
+        return encodeURIComponent(btoa(output.getBytes()));
+    }
+
+    // Given a password and cyphertext will return the decrypted plaintext.
+    editor.decrypt = function(password, cyphertext) {
+        var input = atob(decodeURIComponent(cyphertext));
+        input = forge.util.createBuffer(input, 'binary');
+        input.getBytes('Salted__'.length);
+        var salt = input.getBytes(8);
+        var key_size = 24;
+        var iv_size = 8;
+        var derived_bytes = forge.pbe.opensslDeriveBytes(password, salt, key_size + iv_size);
+        var buffer = forge.util.createBuffer(derived_bytes);
+        var key = buffer.getBytes(key_size);
+        var iv = buffer.getBytes(iv_size);
+        var decipher = forge.cipher.createDecipher('AES-CBC', key);
+        decipher.start({iv: iv});
+        decipher.update(input);
+        var result = decipher.finish();
+        return decipher.output.getBytes();
+    }
+
     return editor;
 };
 
@@ -172,13 +215,17 @@ the editor to the DOM (web-page).
 
 See the comments in-line for more information.
 */
-function web_editor() {
-    // Sets the description associated with the code displayed in the UI
+function web_editor(config) {
+
+    // Indicates if there are unsaved changes to the content of the editor.
+    var dirty = false;
+
+    // Sets the description associated with the code displayed in the UI.
     function setDescription(x) {
         $("#script-description").text(x);
     }
 
-    // Sets the name associated with the code displayed in the UI
+    // Sets the name associated with the code displayed in the UI.
     function setName(x) {
         $("#script-name").text(x);
     }
@@ -195,60 +242,102 @@ function web_editor() {
 
     // Get the font size of the text currently displayed in the editor.
     function getFontSize() {
-        return parseInt($('#editor').css('font-size'));
+        return EDITOR.ACE.getFontSize();
     }
 
     // Set the font size of the text currently displayed in the editor.
     function setFontSize(size) {
-        $('#editor').css('font-size', size + 'px');
+        EDITOR.ACE.setFontSize(size);
     }
 
     // Sets up the zoom-in functionality.
     function zoomIn() {
+        var continueZooming = true;
+        // Change editor zoom
         var fontSize = getFontSize();
-        fontSize += 8;
-        if(fontSize > 46) {
-            fontSize = 46;
+        fontSize += EDITOR.fontSizeStep;
+        var fontSizeLimit = EDITOR.initialFontSize + (EDITOR.fontSizeStep * 6);
+        if (fontSize > fontSizeLimit) {
+            fontSize = fontSizeLimit;
+            continueZooming = false;
         }
         setFontSize(fontSize);
+        // Change Blockly zoom
+        var workspace = Blockly.getMainWorkspace();
+        if (workspace && continueZooming) {
+            Blockly.getMainWorkspace().zoomCenter(1);
+        }
     };
 
     // Sets up the zoom-out functionality.
     function zoomOut() {
+        var continueZooming = true;
+        // Change editor zoom
         var fontSize = getFontSize();
-        fontSize -= 8;
-        if(fontSize < 22) {
-            fontSize = 22;
+        fontSize -= EDITOR.fontSizeStep;
+        var fontSizeLimit = EDITOR.initialFontSize - (EDITOR.fontSizeStep * 3);
+        if(fontSize < fontSizeLimit) {
+            fontSize = fontSizeLimit;
+            continueZooming = false;
         }
         setFontSize(fontSize);
+        // Change Blockly zoom
+        var workspace = Blockly.getMainWorkspace();
+        if (workspace && continueZooming) {
+            Blockly.getMainWorkspace().zoomCenter(-1);
+        }
     };
 
-    // This function is called by TouchDevelop to cause the editor to be initialised. It sets things up so the user sees their code or, in the case of a new program, uses some sane defaults.
-    function setupEditor(message) {
+    // Checks for feature flags in the config object and shows/hides UI
+    // elements as required.
+    function setupFeatureFlags() {
+        if(config.flags.blocks) {
+            $("#command-blockly").removeClass('hidden');
+        }
+        if(config.flags.snippets) {
+            $("#command-snippet").removeClass('hidden');
+        }
+        if(config.flags.share) {
+            $("#command-share").removeClass('hidden');
+        }
+    };
+
+    // This function is called to initialise the editor. It sets things up so
+    // the user sees their code or, in the case of a new program, uses some
+    // sane defaults.
+    function setupEditor(message, migration) {
         // Setup the Ace editor.
         EDITOR = pythonEditor('editor');
-        if(!message.name) {
+        if(message.n && message.c && message.s) {
+            var template = $('#decrypt-template').html();
+            Mustache.parse(template);
+            var context = config.translate.decrypt;
+            if (message.h) {
+                context.hint = '(Hint: ' + decodeURIComponent(message.h) + ')';
+            }
+            vex.open({
+                content: Mustache.render(template, context)
+            })
+            $('#button-decrypt-link').click(function() {
+                var password = $('#passphrase').val();
+                setName(EDITOR.decrypt(password, message.n));
+                setDescription(EDITOR.decrypt(password, message.c));
+                EDITOR.setCode(EDITOR.decrypt(password, message.s));
+                vex.close();
+                EDITOR.focus();
+            });
+        } else if(migration != null){
+            setName(migration.meta.name);
+            setDescription(migration.meta.comment);
+            EDITOR.setCode(migration.source);
+            EDITOR.focus();
+        } else {
             // If there's no name, default to something sensible.
             setName("microbit")
-        } else {
-            setName(message.name);
-        }
-        if (!message.comment) {
             // If there's no description, default to something sensible.
             setDescription("A MicroPython script");
-        } else {
-            setDescription(message.comment);
-        }
-        if(message.code && message.code.length > 0) {
-            EDITOR.setCode(message.code);
-        } else {
             // A sane default starting point for a new script.
-            EDITOR.setCode("# Add your Python code here. E.g.\n" +
-                "from microbit import *\n\n\n" +
-                "while True:\n" +
-                "    display.scroll('Hello, World!')\n" +
-                "    display.show(Image.HEART)\n" +
-                "    sleep(2000)\n");
+            EDITOR.setCode(config.translate.code.start);
         }
         EDITOR.ACE.gotoLine(EDITOR.ACE.session.getLength());
         // Configure the zoom related buttons.
@@ -259,6 +348,28 @@ function web_editor() {
         $("#zoom-out").click(function (e) {
             e.stopPropagation();
             zoomOut();
+        });
+        window.setTimeout(function () {
+            // What to do if the user changes the content of the editor.
+            EDITOR.on_change(function () {
+                dirty = true;
+            });
+        }, 1);
+        // Handles what to do if the name is changed.
+        $("#script-name").on("input keyup blur", function () {
+            dirty = true;
+        });
+        // Handles what to do if the description is changed.
+        $("#script-description").on("input keyup blur", function () {
+            dirty = true;
+        });
+        // Describes what to do if the user attempts to close the editor without first saving their work.
+        window.addEventListener("beforeunload", function (e) {
+            if (dirty) {
+                var confirmationMessage = config.translate.confirms.quit;
+                (e || window.event).returnValue = confirmationMessage;
+                return confirmationMessage;
+            }
         });
         // Bind the ESCAPE key.
         $(document).keyup(function(e) {
@@ -283,10 +394,15 @@ function web_editor() {
     // This function describes what to do when the download button is clicked.
     function doDownload() {
         var firmware = $("#firmware").text();
-        var output = EDITOR.getHexFile(firmware);
+        try {
+            var output = EDITOR.getHexFile(firmware);
+        } catch(e) {
+            alert(config.translate.alerts.length);
+            return;
+        }
         var ua = navigator.userAgent.toLowerCase();
         if((ua.indexOf('safari/') > -1) && (ua.indexOf('chrome') == -1)) {
-            alert("Safari has a bug that means your work will be downloaded as an un-named file. Please rename it to something ending in .hex. Alternatively, use a browser such as Firefox or Chrome. They do not suffer from this bug.");
+            alert(config.translate.alerts.download);
             window.open('data:application/octet;charset=utf-8,' + encodeURIComponent(output), '_newtab');
         } else {
             var filename = getName().replace(" ", "_");
@@ -300,13 +416,124 @@ function web_editor() {
         var output = EDITOR.getCode();
         var ua = navigator.userAgent.toLowerCase();
         if((ua.indexOf('safari/') > -1) && (ua.indexOf('chrome') == -1)) {
-            alert("Safari has a bug that means your work will be downloaded as an un-named file. Please rename it to something ending in .py. Alternatively, use a browser such as Firefox or Chrome. They do not suffer from this bug.");
+            alert(config.translate.alerts.save);
             window.open('data:application/octet;charset=utf-8,' + encodeURIComponent(output), '_newtab');
         } else {
             var filename = getName().replace(" ", "_");
             var blob = new Blob([output], {type: "text/plain"});
             saveAs(blob, filename + ".py");
         }
+        dirty = false;
+    }
+
+    // Describes what to do when the load button is clicked.
+    function doLoad() {
+        var template = $('#load-template').html();
+        Mustache.parse(template);
+        vex.open({
+            content: Mustache.render(template, config.translate.load),
+            afterOpen: function(vexContent) {
+                $(vexContent).find('#load-drag-target').on('drag dragstart dragend dragover dragenter dragleave drop', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                })
+                .on('dragover dragenter', function() {
+                    $('#load-drag-target').addClass('is-dragover');
+                })
+                .on('dragleave dragend drop', function() {
+                    $('#load-drag-target').removeClass('is-dragover');
+                })
+                .on('drop', function(e) {
+                    doDrop(e);
+                    vex.close();
+                    EDITOR.focus();
+                });
+                $(vexContent).find('#load-form-form').on('submit', function(e){
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if(e.target[0].files.length === 1) {
+                        var f = e.target[0].files[0];
+                        var ext = (/[.]/.exec(f.name)) ? /[^.]+$/.exec(f.name) : null;
+                        var reader = new FileReader();
+                        if (ext == 'py') {
+                            setName(f.name.replace('.py', ''));
+                            setDescription(config.translate.drop.python);
+                            reader.onload = function(e) {
+                                EDITOR.setCode(e.target.result);
+                            }
+                            reader.readAsText(f);
+                            EDITOR.ACE.gotoLine(EDITOR.ACE.session.getLength());
+                        } else if (ext == 'hex') {
+                            setName(f.name.replace('.hex', ''));
+                            setDescription(config.translate.drop.hex);
+                            reader.onload = function(e) {
+                                var code = EDITOR.extractScript(e.target.result);
+                                if(code.length < 8192) {
+                                    EDITOR.setCode(code);
+                                }
+                            }
+                            reader.readAsText(f);
+                            EDITOR.ACE.gotoLine(EDITOR.ACE.session.getLength());
+                        }
+                    }
+                    vex.close();
+                    EDITOR.focus();
+                    return false;
+                });
+            }
+        })
+        $('.load-toggle').on('click', function(e) {
+            $('.load-drag-target').toggle();
+            $('.load-form').toggle();
+        });
+    }
+
+    // Triggered when a user clicks the blockly button. Toggles blocks on/off.
+    function doBlockly() {
+        var blockly = $('#blockly');
+        if(blockly.is(':visible')) {
+            dirty = false;
+            blockly.hide();
+            editor.ACE.setReadOnly(false);
+            $("#command-snippet").off('click');
+            $("#command-snippet").click(function () {
+              doSnippets();
+            });
+        } else {
+            if(dirty) {
+                if(!confirm(config.translate.confirms.blocks)) {
+                    return;
+                }
+            }
+            editor.ACE.setReadOnly(true);
+            $("#command-snippet").off('click');
+            $("#command-snippet").click(function () {
+              alert(config.translate.alerts.snippets);
+            });
+            blockly.show();
+            blockly.css('width', '33%');
+            blockly.css('height', '100%');
+            if(blockly.find('div.injectionDiv').length === 0) {
+                // Calculate initial zoom level
+                var zoomScaleSteps = 0.2;
+                var fontSteps = (getFontSize() - EDITOR.initialFontSize) / EDITOR.fontSizeStep;
+                var zoomLevel = (fontSteps * zoomScaleSteps) + 1.0;
+                var workspace = Blockly.inject('blockly', {
+                    toolbox: document.getElementById('blockly-toolbox'),
+                    zoom: {
+                        controls: false,
+                        wheel: false,
+                        startScale: zoomLevel,
+                        scaleSpeed: zoomScaleSteps + 1.0
+                    }
+                });
+                function myUpdateFunction(event) {
+                    var code = Blockly.Python.workspaceToCode(workspace);
+                    EDITOR.setCode(code);
+                }
+                workspace.addChangeListener(myUpdateFunction);
+            }
+        };
     }
 
     // This function describes what to do when the snippets button is clicked.
@@ -317,13 +544,17 @@ function web_editor() {
         var template = $('#snippet-template').html();
         Mustache.parse(template);
         var context = {
+            'title': config.translate.code_snippets.title,
+            'description': config.translate.code_snippets.description,
+            'instructions': config.translate.code_snippets.instructions,
+            'trigger_heading': config.translate.code_snippets.trigger_heading,
+            'description_heading': config.translate.code_snippets.description_heading,
             'snippets': snippetManager.snippetMap.python,
             'describe': function() {
                 return function(text, render) {
-                    name = render(text);
-                    description = name.substring(name.indexOf(' - '),
-                                                 name.length);
-                    return description.replace(' - ', '');
+                    var name = render(text);
+                    var trigger = name.split(' - ')[0];
+                    return config.translate.code_snippets[trigger];
                 }
             }
         }
@@ -344,30 +575,41 @@ function web_editor() {
         // Triggered when the user wants to generate a link to share their code.
         var template = $('#share-template').html();
         Mustache.parse(template);
-        var qs_array = [];
-        qs_array.push('name=' + encodeURIComponent(getName()));
-        qs_array.push('comment=' + encodeURIComponent(getDescription()));
-        qs_array.push('code=' + encodeURIComponent(EDITOR.getCode()));
-        var old_url = window.location.href.split('?');
-        var new_url = old_url[0].replace('#', '') + '?' + qs_array.join('&');
-        // shortener API
-        var url = "https://www.googleapis.com/urlshortener/v1/url?key=AIzaSyB2_Cwh5lKUX4a681ZERd3FAt8ijdwbukk";
-        $.ajax(url, {
-            type: "POST",
-            contentType: 'application/json',
-            data: JSON.stringify({
-                longUrl: new_url
-            })
-        }).done(function( data ) {
-            console.log(data);
-            vex.open({
-                content: Mustache.render(template, {})
-            })
-            $('#direct-link').attr('href', data.id);
-            $('#direct-link').text(data.id);
-            $('#twitter-button').html('<a href="https://twitter.com/share" class="twitter-share-button" data-url="' + data.id +'" data-text="Check out this cool MicroPython script! :-)" data-via="ntoll" data-hashtags="bbcmicrobit" data-dnt="true">Tweet</a>');
-            $('#facebook-button').attr('src', 'https://www.facebook.com/plugins/share_button.php?href=' + encodeURIComponent(data.id) + '&layout=button&size=small&mobile_iframe=true&width=59&height=20&appId');
-            twttr.widgets.load();
+        vex.open({
+            content: Mustache.render(template, config.translate.share)
+        })
+        $('#passphrase').focus();
+        $('#button-create-link').click(function() {
+            var password = $('#passphrase').val();
+            var hint = $('#hint').val();
+            var qs_array = [];
+            // Name
+            qs_array.push('n=' + EDITOR.encrypt(password, getName()));
+            // Comment
+            qs_array.push('c=' + EDITOR.encrypt(password, getDescription()));
+            // Source
+            qs_array.push('s=' + EDITOR.encrypt(password, EDITOR.getCode()));
+            // Hint
+            qs_array.push('h=' + encodeURIComponent(hint));
+            var old_url = window.location.href.split('?');
+            var new_url = old_url[0].replace('#', '') + '?' + qs_array.join('&');
+            $('#make-link').hide();
+            $('#direct-link').val(new_url);
+            $('#share-link').show();
+            // shortener API
+            var url = "https://www.googleapis.com/urlshortener/v1/url?key=AIzaSyB2_Cwh5lKUX4a681ZERd3FAt8ijdwbukk";
+            $.ajax(url, {
+                type: "POST",
+                contentType: 'application/json',
+                data: JSON.stringify({
+                    longUrl: new_url
+                })
+            }).done(function( data ) {
+                console.log(data);
+                $('#short-link').attr('href', data.id);
+                $('#short-link').text(data.id);
+                $('#shortener').show();
+            });
         });
     }
 
@@ -380,7 +622,7 @@ function web_editor() {
         var reader = new FileReader();
         if (ext == 'py') {
             setName(file.name.replace('.py', ''));
-            setDescription('Extracted from a Python file');
+            setDescription(config.translate.drop.python);
             reader.onload = function(e) {
                 EDITOR.setCode(e.target.result);
             }
@@ -388,7 +630,7 @@ function web_editor() {
             EDITOR.ACE.gotoLine(EDITOR.ACE.session.getLength());
         } else if (ext == 'hex') {
             setName(file.name.replace('.hex', ''));
-            setDescription('Extracted from a hex file');
+            setDescription(config.translate.drop.hex);
             reader.onload = function(e) {
                 var code = EDITOR.extractScript(e.target.result);
                 if (code.length < 8192) {
@@ -401,7 +643,8 @@ function web_editor() {
         $('#editor').focus();
     }
 
-    // Join up the buttons in the user interface with some functions for handling what to do when they're clicked.
+    // Join up the buttons in the user interface with some functions for
+    // handling what to do when they're clicked.
     function setupButtons() {
         $("#command-download").click(function () {
             doDownload();
@@ -409,20 +652,33 @@ function web_editor() {
         $("#command-save").click(function () {
             doSave();
         });
+        $("#command-load").click(function () {
+            doLoad();
+        });
+        $("#command-blockly").click(function () {
+            doBlockly();
+        });
         $("#command-snippet").click(function () {
             doSnippets();
         });
         $("#command-share").click(function () {
             doShare();
         });
+        $("#command-help").click(function () {
+            if($(".helpsupport_container").css("display") == "none"){
+                $(".helpsupport_container").css("display", "flex");
+            } else {
+                $(".helpsupport_container").css("display", "none");
+            }
+        });
+        $(".helpsupport_container").hide();
     }
 
-    // Extracts the query string and turns it into an object of key/value pairs.
+    // Extracts the query string and turns it into an object of key/value
+    // pairs.
     function get_qs_context() {
         var query_string = window.location.search.substring(1);
-	console.log(window.location.href);
-        if(window.location.href.indexOf("file://") == 0
-		|| window.location.href.indexOf("http://python.microbit.org") == 0 ) {
+        if(window.location.href.indexOf("file://") == 0 ) {
             // Running from the local file system so switch off network share.
             $('#command-share').hide();
             return {};
@@ -436,15 +692,48 @@ function web_editor() {
         return result;
     }
 
-    function setupBetaBar() {
-        $("#hide-betamsg").click(function(){
-	    $("#betabar").hide();
-	});
+    function get_migration() {
+        var compressed_project = window.location.toString().split("#project:")[1];
+        if(typeof compressed_project === "undefined") return null;
+        var bytes = base64js.toByteArray(compressed_project);
+        var project = JSON.parse(LZMA.decompress(bytes));
+        return project;
     }
 
-    setupEditor(get_qs_context());
+    // Checks if this is the latest version of the editor. If not display an
+    // appropriate message.
+    function checkVersion(qs) {
+        $.getJSON('../manifest.json').done(function(data) {
+            if(data.latest === VERSION) {
+                // Already at the latest version, so ignore.
+                return;
+            } else {
+                // This isn't the latest version. Display the message bar with
+                // helpful information.
+                if(qs.force) {
+                    // The inbound link tells us to force use of this editor.
+                    // DO SOMETHING APPROPRIATE HERE? IF ANYTHING?
+                }
+                var template = $('#messagebar-template').html();
+                Mustache.parse(template);
+                var context = config.translate.messagebar;
+                var messagebar = $('#messagebar');
+                messagebar.html(Mustache.render(template, context))
+                messagebar.show();
+                $('#messagebar-link').attr('href',
+                                           window.location.href.replace(VERSION, data.latest));
+                $('#messagebar-close').on('click', function(e) {
+                    $('#messagebar').hide();
+                });
+            }
+        });
+    }
+
+    var qs = get_qs_context()
+    var migration = get_migration();
+    setupFeatureFlags();
+    setupEditor(qs, migration);
+    checkVersion(qs);
     setupButtons();
-    setupBetaBar();
 };
-// Call the web_editor function to start the editor running.
-web_editor();
+

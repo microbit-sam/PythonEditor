@@ -149,6 +149,19 @@ describe("An editor for MicroPython on the BBC micro:bit:", function() {
             expect(hexified).toEqual(expected);
         });
 
+        it("The editor complains if the Python script is greater than 8k in length.", function() {
+            var hex_fail = function() {
+                var result = editor.hexlify(new Array(8189).join('a'));
+            }
+            expect(hex_fail).toThrowError(RangeError, 'Too long');
+        });
+
+        it("The editor is fine if the Python script is 8k in length.", function() {
+            var hexified = editor.hexlify(new Array(8188).join('a'));
+            expect(hexified).not.toBe(null);
+        });
+
+
         it("A hex file is generated from the script and template firmware.",
            function() {
             var template_hex = ":10E000004D500B004D6963726F507974686F6E00EC\n" +
@@ -206,6 +219,31 @@ describe("An editor for MicroPython on the BBC micro:bit:", function() {
                 ":00000001FF";
             var result = editor.extractScript(raw_hex);
             var expected = '';
+            expect(result).toEqual(expected);
+        });
+    });
+
+    describe("It's possible to encrypt and decrypt scripts.", function() {
+
+        var editor;
+
+        beforeEach(function() {
+            affix("#editor");
+            editor = pythonEditor('editor');
+        });
+
+        it("The editor encrypts plaintext to URL safe cyphertext with a passphrase.", function() {
+            var plaintext = "Hello, world";
+            var passphrase = "password";
+            var result = editor.encrypt(passphrase, plaintext);
+            expect(plaintext).toEqual(editor.decrypt(passphrase, result));
+        });
+
+        it("The editor decrypts a URL safe cyphertext to plaintext with a passphrase.", function() {
+            var cyphertext = "U2FsdGVkX1%2FlI5ZAWvG6lrNyGcYXCRN7l9EHmdQgqNU%3D";
+            var passphrase = "password";
+            var result = editor.decrypt(passphrase, cyphertext);
+            var expected = "Hello, world";
             expect(result).toEqual(expected);
         });
     });

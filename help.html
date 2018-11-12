@@ -46,6 +46,7 @@
           <ul class="nav navbar-nav">
             <li><a href="#top">Start Here</a></li>
             <li><a href="#hello">Hello, World!</a></li>
+            <li><a href="#blockly">Blockly</a></li>
             <li><a href="#snippets">Snippets</a></li>
             <li><a href="#bugs">Bug Fixes</a></li>
             <li><a href="#fun">Fun Stuff</a></li>
@@ -58,9 +59,9 @@
 
       <div class="starter-template">
         <div class="row" id="home">
-            <div class="col-md-6 col-md-offset-3">
+            <div class="col-md-8 col-md-offset-2">
                 <a href="http://microbit.co.uk/"><img src="static/img/microbit.png"/></a>
-                <a href="http://python.org/community/microbit/"><img src="static/img/micropython.jpeg"/></a>
+                <a href="http://micropython.org/"><img src="static/img/micropython.jpeg"/></a>
                 <a href="http://python.org/community/microbit/"><img src="static/img/python.png"/></a><a href="http://microbit.co.uk/"></a>
                 <br/></br/>
             </div>
@@ -112,6 +113,35 @@
         </tr>
         <tr>
             <td>
+                <img src="static/img/load.png" alt="Load button"/>
+            </td>
+            <td>
+            It's very easy to load files from your computer into the editor:
+            click the load button then drag the file from your computer onto
+            the grey "drop" area. Alternatively, you could use the file
+            picker (just click on the link at the bottom to toggle between the
+            two options). The editor knows how to read Python files (whose name
+            ends with ".py") and extract Python code from hex files (whose name
+            ends with ".hex").
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <img src="static/img/block_button.png" alt="Blockly button"/>
+            </td>
+            <td>
+            <strong>This is an experimental feature. It may change in future
+            and could contain bugs.</strong> Clicking the "Blockly" button
+            displays a set of drag-and-drop
+            blocks that can be used to quickly create Python code. Move the
+            blocks, watch Python code appear and change. <strong>Moving such
+            blocks will re-write your Python code and you may lose work.
+            Furthermore, the arrangement of blocks is currently not saved,
+            just the resulting Python code.</strong>
+            </td>
+        </tr>
+        <tr>
+            <td>
                 <img src="static/img/snippets.png" alt="Snippets button"/>
             </td>
             <td>
@@ -120,6 +150,7 @@
             re-use in your own programs. There are snippets for most common
             things you'll want to do with Python. Select the one you want and
             fill in the gaps in the code editor to make it do what you want.
+            <strong>Snippets are disabled when blockly is enabled.</strong>
             </td>
         </tr>
         <tr>
@@ -139,10 +170,10 @@
             <td>
             Clicking on the "Share" button creates a unique link that points to
             your script. Add this link to your bookmarks to retrieve your code.
-            If you share this link others will be able to see your code. You
-            can do this via some of the social media buttons. <strong>This
-            button is not available if you're running the editor from a local
-            file system.</strong>
+            If you share this link others will be able to see your code. So
+            your code remains private you must set a password and an optional
+            password hint for it. <strong>This button is not available if
+            you're running the editor from a local file system.</strong>
             </td>
         </tr>
         <tr>
@@ -177,11 +208,9 @@
     strings of characters to display. All the lines are numbered with the
     current line highlighted.</p>
 
-    <p><strong>It's very easy to load files into the editor:</strong> simply
-    drag a file from your computer onto the editor's black text window (where
-    the code is). The editor knows how to read Python files (whose name ends
-    with ".py") and extract Python code from hex files (whose name ends with
-    ".hex").</p>
+    <p>Do you want to see how the editor actually works? It's easy, to view
+    the "source code" press CTRL-U (or CMD-U on a Mac). There's a secret
+    message for you in the code. Can you find it?</p>
 
     <img src="static/img/comic2.png" class="img-responsive center-block"
         alt="http://goo.gl/ArpNbM"/>
@@ -220,6 +249,34 @@ display.scroll("Hello, World!")</code></pre>
     BBC micro:bit scroll your name? Remember, MicroPython will scroll
     everything between the <code>"</code>quotation marks<code>"</code>.</p>
 
+    <h2 id="blockly">Blockly</h2>
+
+    <p>Use blockly to make new Python code from easy to assemble blocks of
+    code.</p>
+
+    <p><img src="static/img/blocks.png"
+        class="img-responsive center-block img-rounded"
+        alt="An animation demonstrating how to use snippets."/></p>
+
+    <p>Blockly updates Python in the code editor as you move blocks around.
+    There are lots of different blocks to cover all the features of the
+    micro:bit. You can make more advanced code by combining blocks together
+    (such as in the example above).</p>
+
+    <p>You should use Blockly to create <em>new code</em> since moving blocks
+    around will overwrite any existing code you have in the editor (and you may
+    lose work as a result). The arrangement of blocks isn't (currently)
+    saved, so Blockly makes a great way to make simple Python code without
+    lots of typing. In the end, you'll learn that simply typing Python is by
+    far the quickest and easiest way to write code.</p>
+
+    <p>Not all the features of the micro:bit or MicroPython are available via
+    Blockly. We've done this on purpose. Some of the more advanced and
+    interesting stuff is only available in pure Python.</p>
+
+    <p>However, by using Blockly you'll very quickly get the hang of how Python
+    code works and fits together.</p>
+
     <h2 id="snippets">Snippets</h2>
 
     <p>Snippets are a cool way to avoid typing. The animation below shows you
@@ -235,6 +292,8 @@ display.scroll("Hello, World!")</code></pre>
     snippet and then fill in the remaining blocks of code so it does what you
     want.</p>
 
+    <p>When blockly is enabled the "Snippets" button is disabled. This avoids
+    snippets from interfering with code that blockly may be generating.</p>
 
     <p><img src="static/img/comic4.png" class="img-responsive center-block"
         alt="http://goo.gl/bT8a8M"/></p>
