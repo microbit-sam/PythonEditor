@@ -556,6 +556,92 @@ function web_editor(config) {
         $('#editor').focus();
     }
 
+    // Describes what to do when the filesystem button is clicked.
+    function doFilesystem() {
+
+        // An object to hold the filesystem
+        microbitFs = new MicropythonFs.FileSystem($("#firmware").text());
+        console.log(microbitFs);
+
+        // Create UI
+        var template = $('#filesystem-template').html();
+        Mustache.parse(template);
+        vex.open({
+            content: Mustache.render(template, config.translate.filesystem),
+            afterOpen: function(vexContent) {
+                $(vexContent).find('#filesystem-drag-target').on('drag dragstart dragend dragover dragenter dragleave drop', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                })
+                .on('dragover dragenter', function() {
+                    $('#filesystem-drag-target').addClass('is-dragover');
+                })
+                .on('dragleave dragend drop', function() {
+                    $('#filesystem-drag-target').removeClass('is-dragover');
+                })
+                .on('drop', function(e) {
+                    var files = e.originalEvent.dataTransfer.files;
+                    doFilesystemAdd(files);
+                });
+                $(vexContent).find('#filesystem-form-form').on('submit', function(e){
+                    e.preventDefault();
+                    e.stopPropagation();
+
+                    var files = e.target[0].files;
+                    doFilesystemAdd(files);
+
+                    // Clear form input
+                    $('#filesystem-form-form input[type=file]').replaceWith( $('#filesystem-form-form input[type=file]').val('').clone(true));
+
+                });
+            }
+        })
+        $('.filesystem-toggle').on('click', function(e) {
+            $('.filesystem-form').toggle();
+        });
+
+        // Load files into table
+        deviceFiles.forEach(function(file) {
+            $('.filesystem-drag-target table tbody').append(
+                '<tr><td>' + file.name + '</td><td>' + file.type + '</td><td>' + (file.size/1024).toFixed(2) + ' kb</td><td>' + ((file.name == 'main.py') ? '' : '<button id="' + file.name + '" class="filesystem-remove-button">Remove</button>') + '</td></tr>'
+            )
+            .on('click', function(e){
+                if($(e.target).hasClass("filesystem-remove-button"))
+                {
+                    doFilesystemRemove(name);
+                    $(e.target).closest("tr").remove();
+                }
+            });
+        });
+    }
+
+    // Function to remove a file
+    function doFilesystemRemove(name) {
+        return microbitFs.remove(name);
+    }
+
+    // Function for adding file to filesystem
+    function doFilesystemAdd(files) {
+
+        Array.from(files).forEach(function(file) {
+            var fileType = (/[.]/.exec(file.name)) ? /[^.]+$/.exec(file.name) : "";
+
+            deviceFiles.push({'name': file.name, 'type': fileType.toString(), size: file.size});
+            $('.filesystem-drag-target table tbody').append(
+                '<tr><td>' + file.name + '</td><td>' + file.type + '</td><td>' + (file.size/1024).toFixed(2) + ' kb</td><td>' + ((file.name == 'main.py') ? '' : '<button id="' + file.name + '" class="filesystem-remove-button">Remove</button>') + '</td></tr>'
+            );
+
+            var fileReader = new FileReader();
+            fileReader.onloadend = function (e) {
+              var arrayBuffer = e.target.result;
+              var fileType = $('#file-type').val();
+              microbitFs.write(file.name, arrayBuffer);
+            };
+            fileReader.readAsArrayBuffer(file);
+        });
+
+    }
+
     // Join up the buttons in the user interface with some functions for
     // handling what to do when they're clicked.
     function setupButtons() {
@@ -576,6 +662,9 @@ function web_editor(config) {
         });
         $("#command-share").click(function () {
             doShare();
+        });
+        $("#command-filesystem").click(function () {
+            doFilesystem();
         });
     }
 
@@ -631,4 +720,8 @@ function web_editor(config) {
     setupEditor(qs);
     checkVersion(qs);
     setupButtons();
+
+var deviceFiles = [
+                {'name':'main.py', 'type':'py', 'size':1026}
+            ];
 }
