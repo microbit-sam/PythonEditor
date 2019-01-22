@@ -944,6 +944,19 @@
      * General utilities.
      */
     /**
+     * String placed inside the MicroPython hex string to indicate where to
+     * paste the Python Code
+     */
+    var HEX_INSERTION_POINT = ':::::::::::::::::::::::::::::::::::::::::::\n';
+    /**
+     * Removes the old insertion line the input Intel Hex string contains it.
+     * @param intelHex String with the intel hex lines.
+     * @returns The Intel Hex string without insertion line.
+     */
+    function cleanseOldHexFormat(intelHex) {
+        return intelHex.replace(HEX_INSERTION_POINT, '');
+    }
+    /**
      * Converts a string into a byte array of characters.
      * TODO: Update to encode to UTF-8 correctly.
      * @param str - String to convert to bytes.
@@ -973,20 +986,8 @@
     /**
      * Module to add and remove Python scripts into and from a MicroPython hex.
      */
-    /**
-     * String placed inside the MicroPython hex string to indicate where to
-     * paste the Python Code
-     */
-    var HEX_INSERTION_POINT = ':::::::::::::::::::::::::::::::::::::::::::\n';
+    /** How many bytes per Intel Hex record line. */
     var HEX_RECORD_DATA_LEN = 16;
-    /**
-     * Removes the old insertion line the input Intel Hex string contains it.
-     * @param intelHex String with the intel hex lines.
-     * @returns The Intel Hex string without insertion line.
-     */
-    function cleanseOldHexFormat(intelHex) {
-        return intelHex.replace(HEX_INSERTION_POINT, '');
-    }
     /**
      * Parses through an Intel Hex string to find the Python code at the
      * allocated address and extracts it.
@@ -1051,43 +1052,246 @@
         // Older versions of DAPLink need the file to end in a new line
         return intelHexMap.asHexString() + '\n';
     }
+    /**
+     * Checks the Intel Hex memory map to see if there is an appended script.
+     *
+     * TODO: Actually implement this.
+     * At the moment the test version of the Python Editor also appends the script
+     * so that it is still readable by the editor.
+     * @param intelHexMap - Memory map for the MicroPython Intel Hex.
+     * @returns True if script is present, false otherwise.
+     */
+    function isAppendedScriptPresent(intelHexMap) {
+        return true;
+    }
+
+    /** Flash values for the micro:bit nRF microcontroller. */
+    var FLASH_PAGE_SIZE = 1024;
+    var FLASH_END = 0x40000;
+    /** Size of pages with specific functions. */
+    var CALIBRATION_PAGE_SIZE = FLASH_PAGE_SIZE;
+    // ----------------------------------------------------------------------------
+    // Temporary maintained state pointing to the next available chunk.
+    // TODO: Remove once nextAvailableChunk() is updated.
+    // Chosen by fair dice roll, guaranteed to be random.
+    var FS_START_CHUNK = 0x01;
+    var FS_NEXT_AVAILABLE_CHUNK = FS_START_CHUNK;
+    function fsIncreaseChunkIndex(numberOfChunks) {
+        FS_NEXT_AVAILABLE_CHUNK += numberOfChunks;
+        var unusedMap = new MemoryMap();
+        // Check if we are over the filesystem area
+        if (chuckIndexAddress(unusedMap, FS_NEXT_AVAILABLE_CHUNK) >=
+            getEndAddress(unusedMap)) {
+            throw new Error('There is no more space in the file system.');
+        }
+    }
+    // ----------------------------------------------------------------------------
+    /**
+     * Navigate through the Intel Hex memory map scanning through the file system
+     * and finding the next available chunk.
+     *
+     * TODO: Update to scan input hex.
+     * @param intelHexMap
+     * @returns Next available filesystem chunk.
+     */
+    function nextAvailableChunk(intelHexMap) {
+        // TODO: Check if we have run out of memory.
+        return FS_NEXT_AVAILABLE_CHUNK;
+    }
+    /**
+     * Calculates from the input Intel Hex where the MicroPython runtime ends and
+     * return that as the start of the filesystem area.
+     *
+     * TODO: Actually calculate this.
+     * @param intelHexMap
+     * @returns Filesystem start address
+     */
+    function getStartAddress(intelHexMap) {
+        // TODO: For this first implementation the start address is manually
+        // calculated and written down here.
+        return 0x38c00;
+    }
+    /**
+     * Calculates the end address for the filesystem.
+     *
+     * Start from the end of flash or from the top of appended script if
+     * one is included in the Intel Hex data.
+     * Then one page is used at the end of this space for the magnetometer
+     * calibration data, and one page by the filesystem as the persistent page.
+     * @param intelHexMap - Memory map for the MicroPython Intel Hex.
+     * @returns End address for the filesystem.
+     */
+    function getEndAddress(intelHexMap) {
+        var endAddress = FLASH_END;
+        // TODO: isAppendedScriptPresent is not yet implemented
+        {
+            endAddress = 253952 /* StartAdd */;
+        }
+        return endAddress - CALIBRATION_PAGE_SIZE;
+    }
+    /**
+     * Calculates the address for the last page available to the filesystem.
+     * @param intelHexMap - Memory map for the MicroPython Intel Hex.
+     * @returns Memory address where the last filesystem page starts.
+     */
+    function getLastPageAddress(intelHexMap) {
+        return getEndAddress(intelHexMap) - FLASH_PAGE_SIZE;
+    }
+    /**
+     * Get the start address for the persistent page in flash.
+     *
+     * This page is located right below the end of the filesystem space.
+     * @param intelHexMap - Memory map for the MicroPython Intel Hex.
+     * @returns Start address for the filesystem persistent page.
+     */
+    function getPersistentPageAddress(intelHexMap) {
+        // TODO: This could be the first or the last page. Randomise if it doesn't
+        // exists.
+        return getLastPageAddress(intelHexMap);
+    }
+    /**
+     * Calculate the flash memory address from the chunk index.
+     * @param intelHexMap - Memory map for the MicroPython Intel Hex.
+     * @param chunkIndex - Index for the chunk to calculate.
+     * @returns Address in flash for the chunk.
+     */
+    function chuckIndexAddress(intelHexMap, chunkIndex) {
+        // Chunk index starts at 1, so we need to account for that in the calculation
+        return getStartAddress(intelHexMap) + (chunkIndex - 1) * 128 /* All */;
+    }
+    /** Contain file data and create its filesystem representation. */
+    var FsFile = /** @class */ (function () {
+        function FsFile(filename, data) {
+            this._filename = filename;
+            this._dataBytes = data;
+            // Generate a single byte array with the filesystem data bytes.
+            var fileHeader = this.generateFileHeaderBytes();
+            this._fsDataBytes = new Uint8Array(fileHeader.length + this._dataBytes.length);
+            this._fsDataBytes.set(fileHeader, 0);
+            this._fsDataBytes.set(this._dataBytes, fileHeader.length);
+        }
+        /**
+         * Generates a byte array for the file header as expected by the MicroPython
+         * file system.
+         * @return Byte array with the header data.
+         */
+        FsFile.prototype.generateFileHeaderBytes = function () {
+            var headerSize = 1 /* EndOffset */ + 1 /* NameLength */ + this._filename.length;
+            var endOffset = (headerSize + this._dataBytes.length) % 126 /* Data */;
+            var fileNameOffset = headerSize - this._filename.length;
+            // Format header byte array
+            var headerBytes = new Uint8Array(headerSize);
+            headerBytes[1 /* EndOffset */ - 1] = endOffset;
+            headerBytes[2 /* NameLength */ - 1] = this._filename.length;
+            for (var i = fileNameOffset; i < headerSize; ++i) {
+                // TODO: use strToBytes instead
+                headerBytes[i] = this._filename.charCodeAt(i - fileNameOffset);
+            }
+            return headerBytes;
+        };
+        /**
+         * Takes a file name and a byte array of data to add to the file system, and
+         * converts it into an array of file system chunks, each a byte array.
+         * @param chunkIndex - Index of the first chunk where this data will be
+         *         stored.
+         * @returns An array of byte arrays, one item per chunk.
+         */
+        FsFile.prototype.getFsChunks = function (chunkIndex) {
+            // Now form the chunks
+            var chunks = [];
+            var dataIndex = 0;
+            // First case is an exception, where the marker indicates file start
+            var chunk = new Uint8Array(128 /* All */).fill(0xff);
+            chunk[0 /* Marker */] = 254 /* FileStart */;
+            var loopEnd = Math.min(this._fsDataBytes.length, 126 /* Data */);
+            for (var i = 0; i < loopEnd; i++, dataIndex++) {
+                chunk[1 /* Marker */ + i] = this._fsDataBytes[dataIndex];
+            }
+            chunks.push(chunk);
+            // The rest follow the same pattern
+            while (dataIndex < this._fsDataBytes.length) {
+                chunk = new Uint8Array(128 /* All */).fill(0xff);
+                // This chunk points to the previous, increase index for this chunk
+                chunk[0 /* Marker */] = chunkIndex++;
+                // At each loop iteration we know the previous chunk has to be
+                // followed by this one, so add this index to the previous
+                // chunk "next chunk" field at the tail
+                chunks[chunks.length - 1][127 /* Tail */] = chunkIndex;
+                // Add the data to this chunk
+                loopEnd = Math.min(this._fsDataBytes.length - dataIndex, 126 /* Data */);
+                for (var i = 0; i < loopEnd; i++, dataIndex++) {
+                    chunk[1 /* Marker */ + i] = this._fsDataBytes[dataIndex];
+                }
+                chunks.push(chunk);
+            }
+            return chunks;
+        };
+        FsFile.prototype.getFsBytes = function (chunkIndex) {
+            var chunks = this.getFsChunks(chunkIndex);
+            // TODO: remove the need to do this
+            fsIncreaseChunkIndex(chunks.length);
+            var chunksLen = chunks.length * 128 /* All */;
+            var fileFsBytes = new Uint8Array(chunksLen);
+            // tslint:disable-next-line:prefer-for-of
+            for (var i = 0; i < chunks.length; i++) {
+                fileFsBytes.set(chunks[i], 128 /* All */ * i);
+            }
+            return fileFsBytes;
+        };
+        return FsFile;
+    }());
+    function addFileToIntelHex(intelHex, filename, data) {
+        // Do nothing if there is no files to add
+        if (!filename || !data.length) {
+            // TODO: Throw error
+            return intelHex;
+        }
+        var intelHexClean = cleanseOldHexFormat(intelHex);
+        var intelHexMap = MemoryMap.fromHex(intelHexClean);
+        // Find next available chunk and its flash address
+        var chunkIndex = nextAvailableChunk(intelHexMap);
+        var startAddress = chuckIndexAddress(intelHexMap, chunkIndex);
+        // Store in an array each file converted to file system chunks
+        var fsFile = new FsFile(filename, data);
+        var fileFsBytes = fsFile.getFsBytes(chunkIndex);
+        // Add files to Intel Hex, including the persistent page marker.
+        intelHexMap.set(startAddress, fileFsBytes);
+        intelHexMap.set(getPersistentPageAddress(intelHexMap), new Uint8Array([253 /* PersistentData */]));
+        return intelHexMap.asHexString() + '\n';
+    }
 
     var SimpleFile = /** @class */ (function () {
         function SimpleFile(filename, data) {
             this.filename = filename;
             if (typeof data === 'string') {
-                this.data = strToBytes(data);
+                this._dataBytes = strToBytes(data);
             }
             else {
-                this.data = data;
+                this._dataBytes = data;
             }
         }
         SimpleFile.prototype.getText = function () {
-            return bytesToStr(this.data);
+            return bytesToStr(this._dataBytes);
         };
         SimpleFile.prototype.getBytes = function () {
-            return this.data;
+            return this._dataBytes;
         };
         return SimpleFile;
     }());
+    // TODO: Max filename size
     // tslint:disable-next-line:max-classes-per-file
     var FileSystem = /** @class */ (function () {
         function FileSystem(intelHex) {
             this._files = {};
             this._intelHex = intelHex;
+            // TODO: Read present file system in Intel Hex and populate files here
         }
-        FileSystem.prototype.create = function (filename, content) {
-            // TODO: Create an empty file, with optional content
-            // TODO: Throw error if file already exists
-            // tslint:disable-next-line:no-console
-            console.log('create() method unimplemented.');
-        };
         FileSystem.prototype.write = function (filename, content) {
             this._files[filename] = new SimpleFile(filename, content);
         };
         FileSystem.prototype.append = function (filename, content) {
             // TODO: Append content to existing file
-            // TODO: Throw error if file does not exists
+            // TODO: Do we throw error if file does not exists, or create it?
             // tslint:disable-next-line:no-console
             console.log('append() method unimplemented.');
         };
@@ -1103,20 +1307,27 @@
             // TODO: Check if file exists first
             delete this._files[filename];
         };
+        FileSystem.prototype.exists = function (filename) {
+            return this._files.hasOwnProperty(filename);
+        };
         FileSystem.prototype.ls = function () {
             var files = [];
             Object.values(this._files).forEach(function (value) { return files.push(value.filename); });
             return files;
         };
         FileSystem.prototype.getIntelHex = function () {
-            // TODO: Generate filesystem and inject into Intel Hex string
-            return this._intelHex;
+            var finalHex = this._intelHex;
+            Object.values(this._files).forEach(function (file) {
+                finalHex = addFileToIntelHex(finalHex, file.filename, file.getBytes());
+            });
+            return finalHex;
         };
         return FileSystem;
     }());
 
     exports.appendScriptToIntelHex = appendScriptToIntelHex;
     exports.getScriptFromIntelHex = getScriptFromIntelHex;
+    exports.isAppendedScriptPresent = isAppendedScriptPresent;
     exports.FileSystem = FileSystem;
 
     Object.defineProperty(exports, '__esModule', { value: true });

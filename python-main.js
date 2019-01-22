@@ -296,7 +296,9 @@ function web_editor(config) {
     function doDownload() {
         var firmware = $("#firmware").text();
         try {
-            var output = EDITOR.getHexFile(firmware);
+            // Use hex from filesystem instead
+            // var output = EDITOR.getHexFile(firmware);
+            var output = EDITOR.getHexFile(microbitFs.getIntelHex());
         } catch(e) {
             alert(config.translate.alerts.length);
             return;
@@ -608,7 +610,8 @@ function web_editor(config) {
             .on('click', function(e){
                 if($(e.target).hasClass("filesystem-remove-button"))
                 {
-                    doFilesystemRemove(name);
+                    console.log(e.target.id);
+                    doFilesystemRemove(e.target.id);
                     $(e.target).closest("tr").remove();
                 }
             });
@@ -633,7 +636,7 @@ function web_editor(config) {
 
             var fileReader = new FileReader();
             fileReader.onloadend = function (e) {
-              var arrayBuffer = e.target.result;
+              var arrayBuffer = new Uint8Array(e.target.result);
               var fileType = $('#file-type').val();
               microbitFs.write(file.name, arrayBuffer);
             };
@@ -721,7 +724,7 @@ function web_editor(config) {
     checkVersion(qs);
     setupButtons();
 
-var deviceFiles = [
-                {'name':'main.py', 'type':'py', 'size':1026}
-            ];
+    var deviceFiles = [
+        {'name':'main.py', 'type':'py', 'size': ''}
+    ];
 }
