@@ -387,6 +387,9 @@ function web_editor(config) {
                             };
                             reader.readAsText(f);
                             EDITOR.ACE.gotoLine(EDITOR.ACE.session.getLength());
+            
+                            // We currently can't load the filesystem from a HEX file
+                            alert("The filesystem manager is still under development and currently unable to load files from a HEX file.");
                         }
                     }
                     vex.close();
@@ -563,6 +566,9 @@ function web_editor(config) {
             };
             reader.readAsText(file);
             EDITOR.ACE.gotoLine(EDITOR.ACE.session.getLength());
+
+            // We currently can't load the filesystem from a HEX file
+            alert("The filesystem manager is still under development and currently unable to load files from a HEX file.");
         }
         $('#editor').focus();
     }
@@ -618,7 +624,7 @@ function web_editor(config) {
             var fileType = (/[.]/.exec(file.filename)) ? /[^.]+$/.exec(file.filename) : "";
 
             $('.filesystem-drag-target table tbody').append(
-                '<tr><td>' + file.filename + '</td><td>' + fileType + '</td><td>' + (file._dataBytes.length/1024).toFixed(2) + ' kb</td><td>' + ((file.name == 'main.py') ? '' : '<button id="' + file.filename + '" class="filesystem-remove-button">Remove</button>') + '</td></tr>'
+                '<tr><td>' + file.filename + '</td><td>' + fileType + '</td><td>' + (file._dataBytes.length/1024).toFixed(2) + ' kb</td><td>' + ((file.filename == 'main.py') ? '' : '<button id="' + file.filename + '" class="filesystem-remove-button">Remove</button>') + '</td></tr>'
             ).on('click', function(e){
                 if($(e.target).hasClass("filesystem-remove-button"))
                 {
@@ -639,6 +645,13 @@ function web_editor(config) {
     function doFilesystemAdd(files) {
 
         Array.from(files).forEach(function(file) {
+            // Check if file already exists
+            if(microbitFs.exists(file.name))
+            {
+                alert(file.name + " already exists in the file system!");
+                return;
+            }   
+
             var fileType = (/[.]/.exec(file.name)) ? /[^.]+$/.exec(file.name) : "";
 
             $('.filesystem-drag-target table tbody').append(
