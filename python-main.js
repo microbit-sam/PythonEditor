@@ -294,6 +294,15 @@ function web_editor(config) {
 
     // This function describes what to do when the download button is clicked.
     function doDownload() {
+        // Create fs if doesn't exist
+        if(typeof microbitFs === "undefined")
+            microbitFs = new MicropythonFs.FileSystem($("#firmware").text());
+
+        // Add main.py to filesystem
+        microbitFs.remove("main.py"); // Remove existing
+        microbitFs.write("main.py", EDITOR.getCode()); // Add main.py
+
+        // Create hex
         var firmware = $("#firmware").text();
         try {
             // Use hex from filesystem instead
@@ -562,8 +571,8 @@ function web_editor(config) {
     function doFilesystem() {
 
         // An object to hold the filesystem
-        microbitFs = new MicropythonFs.FileSystem($("#firmware").text());
-        console.log(microbitFs);
+        if(typeof microbitFs === "undefined")
+            microbitFs = new MicropythonFs.FileSystem($("#firmware").text());
 
         // Create UI
         var template = $('#filesystem-template').html();
@@ -601,21 +610,24 @@ function web_editor(config) {
         $('.filesystem-toggle').on('click', function(e) {
             $('.filesystem-form').toggle();
         });
+        
+        Object.keys(microbitFs._files).forEach(function(key) {
 
-        // Load files into table
-        deviceFiles.forEach(function(file) {
+            var file = microbitFs._files[key];
+
+            var fileType = (/[.]/.exec(file.filename)) ? /[^.]+$/.exec(file.filename) : "";
+
             $('.filesystem-drag-target table tbody').append(
-                '<tr><td>' + file.name + '</td><td>' + file.type + '</td><td>' + (file.size/1024).toFixed(2) + ' kb</td><td>' + ((file.name == 'main.py') ? '' : '<button id="' + file.name + '" class="filesystem-remove-button">Remove</button>') + '</td></tr>'
-            )
-            .on('click', function(e){
+                '<tr><td>' + file.filename + '</td><td>' + fileType + '</td><td>' + (file._dataBytes.length/1024).toFixed(2) + ' kb</td><td>' + ((file.name == 'main.py') ? '' : '<button id="' + file.filename + '" class="filesystem-remove-button">Remove</button>') + '</td></tr>'
+            ).on('click', function(e){
                 if($(e.target).hasClass("filesystem-remove-button"))
                 {
-                    console.log(e.target.id);
                     doFilesystemRemove(e.target.id);
                     $(e.target).closest("tr").remove();
                 }
             });
         });
+
     }
 
     // Function to remove a file
@@ -629,10 +641,15 @@ function web_editor(config) {
         Array.from(files).forEach(function(file) {
             var fileType = (/[.]/.exec(file.name)) ? /[^.]+$/.exec(file.name) : "";
 
-            deviceFiles.push({'name': file.name, 'type': fileType.toString(), size: file.size});
             $('.filesystem-drag-target table tbody').append(
                 '<tr><td>' + file.name + '</td><td>' + file.type + '</td><td>' + (file.size/1024).toFixed(2) + ' kb</td><td>' + ((file.name == 'main.py') ? '' : '<button id="' + file.name + '" class="filesystem-remove-button">Remove</button>') + '</td></tr>'
-            );
+            ).on('click', function(e){
+                if($(e.target).hasClass("filesystem-remove-button"))
+                {
+                    doFilesystemRemove(e.target.id);
+                    $(e.target).closest("tr").remove();
+                }
+            });
 
             var fileReader = new FileReader();
             fileReader.onloadend = function (e) {
@@ -724,7 +741,4 @@ function web_editor(config) {
     checkVersion(qs);
     setupButtons();
 
-    var deviceFiles = [
-        {'name':'main.py', 'type':'py', 'size': ''}
-    ];
 }
